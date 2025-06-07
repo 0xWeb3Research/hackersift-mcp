@@ -8,7 +8,7 @@ import sys
 import time
 import re
 import random
-from prompts import SECURITY_AUDIT_PROMPT, category_analysis_prompt_template
+from prompts import SECURITY_AUDIT_PROMPT 
 
 # Load environment variables
 load_dotenv()
