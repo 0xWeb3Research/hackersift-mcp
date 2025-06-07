@@ -1,0 +1,12 @@
+[project]
+name = "one618agent"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "langchain-community>=0.3.24",
+    "langchain-huggingface>=0.2.0",
+    "mcp[cli]>=1.9.3",
+    "sentence-transformers>=4.1.0",
+]
