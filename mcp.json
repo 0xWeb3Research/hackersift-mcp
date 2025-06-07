@@ -1,0 +1,13 @@
+{
+    "mcpServers": {
+      "solodit": {
+        "command": "//home/one618xyz/.local/bin/uv", 
+        "args": [
+          "--directory",
+          "/home/one618xyz/Documents/devlopment/one618Agent",
+          "run",
+          "main.py"
+        ]
+      }
+    }
+  }
