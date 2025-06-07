@@ -5,6 +5,6 @@
   
   > steps to run the script
   ```
-  mcp dev main.py |  uv run --with mcp mcp run main.py
+  mpc dev main.py |  uv run --with mcp mpc run main.py
   ```
 </div>
