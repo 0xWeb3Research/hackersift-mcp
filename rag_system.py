@@ -14,7 +14,7 @@ from prompts import SECURITY_AUDIT_PROMPT
 load_dotenv()
 
 class ReportRAG:
-    def __init__(self, reports_dir: str = "reports"):
+    def __init__(self, reports_dir: str = "reports", groq_keys=None):
         self.reports_dir = Path(reports_dir)
         # Initialize Pinecone
         api_key = os.getenv("PINECONE_API_KEY")
@@ -23,14 +23,54 @@ class ReportRAG:
         self.pc = Pinecone(api_key=api_key)
         self.index_name = "security-reports"
         
-        # Initialize Groq
-        groq_key = os.getenv("GROQ_API_KEY")
-        if not groq_key:
-            raise ValueError("GROQ_API_KEY environment variable is not set")
-        self.client = Groq(api_key=groq_key)
+        # Load Groq keys from argument or environment (comma-separated or [a,b,c,d] format)
+        if groq_keys is None:
+            groq_keys_env = os.getenv("GROQ_API_KEYS")
+            if not groq_keys_env:
+                raise ValueError("GROQ_API_KEYS environment variable is not set (comma-separated list or [a,b,c,d] format)")
+            groq_keys_env = groq_keys_env.strip()
+            if groq_keys_env.startswith("[") and groq_keys_env.endswith("]"):
+                groq_keys_env = groq_keys_env[1:-1]
+            groq_keys = [k.strip() for k in groq_keys_env.split(",") if k.strip()]
+        if not groq_keys:
+            raise ValueError("No Groq API keys provided")
+        
+        # Verify keys and keep only working ones
+        self.working_groq_clients = []
+        for key in groq_keys:
+            client = Groq(api_key=key)
+            if self._verify_groq_key(client):
+                self.working_groq_clients.append(client)
+        if not self.working_groq_clients:
+            raise RuntimeError("No valid Groq API keys found!")
+        self._groq_index = 0  # For round-robin rotation
         
         # Initialize or get index
         self._initialize_index()
+
+    def _verify_groq_key(self, client) -> bool:
+        """Verify a Groq API key by making a minimal test request."""
+        try:
+            # Use a very short prompt and low max_tokens for speed/cost
+            completion = client.chat.completions.create(
+                model="meta-llama/llama-4-scout-17b-16e-instruct",
+                messages=[{"role": "user", "content": "ping"}],
+                temperature=0.0,
+                max_tokens=1
+            )
+            # If we get a response, the key works
+            return bool(completion.choices and completion.choices[0].message)
+        except Exception as e:
+            print(f"Groq key verification failed: {e}", file=sys.stderr)
+            return False
+
+    def _get_next_groq_client(self):
+        """Rotate and return the next working Groq client (round-robin)."""
+        if not self.working_groq_clients:
+            raise RuntimeError("No working Groq clients available!")
+        client = self.working_groq_clients[self._groq_index]
+        self._groq_index = (self._groq_index + 1) % len(self.working_groq_clients)
+        return client
 
     def _initialize_index(self):
         """Initialize or get the Pinecone index."""
@@ -281,8 +321,9 @@ class ReportRAG:
                 question=question
             )
 
-            # Get response from Groq
-            completion = self.client.chat.completions.create(
+            # Use a rotated Groq client
+            client = self._get_next_groq_client()
+            completion = client.chat.completions.create(
                 model="meta-llama/llama-4-scout-17b-16e-instruct",
                 messages=[
                     {"role": "system", "content": "You are a senior Web3 security auditor specializing in smart contract security, DeFi protocols, and blockchain applications."},
