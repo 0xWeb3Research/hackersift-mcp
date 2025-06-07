@@ -21,6 +21,18 @@ def query_reports(question: str) -> str:
         print(error_msg, file=sys.stderr)
         return error_msg
 
+@mcp.tool()
+def analyze_protocol_category(context: str) -> str:
+    """Analyze and classify the protocol/report context into DeFi categories, with justification."""
+    try:
+        print(f"Analyzing protocol category for context...", file=sys.stderr)
+        response = rag.analyze_protocol_category(context)
+        return response
+    except Exception as e:
+        error_msg = f"Error in analyze_protocol_category: {str(e)}"
+        print(error_msg, file=sys.stderr)
+        return error_msg
+
 def test_query():
     """Test function to directly query the RAG system"""
     print("Testing RAG system...", file=sys.stderr)

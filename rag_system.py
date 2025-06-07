@@ -8,7 +8,7 @@ import sys
 import time
 import re
 import random
-from prompts import SECURITY_AUDIT_PROMPT
+from prompts import SECURITY_AUDIT_PROMPT, category_analysis_prompt_template
 
 # Load environment variables
 load_dotenv()
@@ -340,5 +340,53 @@ class ReportRAG:
             
         except Exception as e:
             error_msg = f"Error processing query: {str(e)}"
+            print(error_msg, file=sys.stderr)
+            return error_msg 
+
+    def analyze_protocol_category(self, context: str, top_k: int = 3) -> str:
+        """Analyze the protocol category/categories for the given context using the category analysis prompt."""
+        try:
+            # Search the index for relevant context (reuse logic from query)
+            results = self.index.search(
+                namespace="security-reports",
+                query={
+                    "top_k": top_k,
+                    "inputs": {
+                        'text': context
+                    }
+                }
+            )
+            if not results['result']['hits']:
+                return "No relevant documents found to analyze the protocol category."
+
+            # Prepare context from retrieved documents
+            all_chunks = []
+            for hit in results['result']['hits']:
+                source = hit['fields'].get('source', 'Unknown')
+                content = hit['fields'].get('chunk_text', '')
+                content_chunks = self.chunk_text(content)
+                for chunk in content_chunks:
+                    all_chunks.append(f"Source: {source}\nContent: {chunk}")
+            context_str = "\n\n".join(all_chunks)
+
+            # Format the prompt using the category analysis template
+            prompt = category_analysis_prompt_template.format(context=context_str)
+
+            # Use a rotated Groq client
+            client = self._get_next_groq_client()
+            completion = client.chat.completions.create(
+                model="meta-llama/llama-4-scout-17b-16e-instruct",
+                messages=[
+                    {"role": "system", "content": "You are a DeFi protocol analyst."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.5,
+                max_tokens=1024
+            )
+            if not completion.choices or not completion.choices[0].message:
+                return "No response generated from the model."
+            return completion.choices[0].message.content
+        except Exception as e:
+            error_msg = f"Error processing protocol category analysis: {str(e)}"
             print(error_msg, file=sys.stderr)
             return error_msg 
